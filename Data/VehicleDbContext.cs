@@ -8,13 +8,15 @@ namespace T5.Data
         public VehicleDbContext(DbContextOptions<VehicleDbContext> options) : base(options) { }
 
         public DbSet<VehicleModel> Vehicles { get; set; }
+        public DbSet<EquipmentModel> Equipments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<VehicleModel>(entity =>
-            {
-                entity.HasKey(v => v.VehicleId);
-            });
+            modelBuilder.Entity<VehicleModel>()
+                .HasMany(v => v.Equipments)
+                .WithOne()
+                .HasForeignKey(e => e.VehicleId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
