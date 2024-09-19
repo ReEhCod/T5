@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using T5.Data;
 using T5.Models;
+using T5.Repositories;
 
 namespace T5.Controllers
 {
@@ -14,95 +15,85 @@ namespace T5.Controllers
     [ApiController]
     public class VehiclesController : ControllerBase
     {
-        private readonly VehicleDbContext _context;
+        private readonly IVehicleRepo _repo;
 
-        public VehiclesController(VehicleDbContext context)
+        public VehiclesController(IVehicleRepo repo)
         {
-            _context = context;
+            _repo = repo;
         }
 
         // GET: api/Vehicles
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<VehicleModel>>> GetVehicles()
+        public async Task<ActionResult<IEnumerable<VehicleModel>>> GetVehiclesAsync()
         {
-            return await _context.Vehicles.ToListAsync();
+            return Ok(await _repo.GetAllVehiclesAsync());
         }
 
-        // GET: api/Vehicles/5
+        // GET: api/Vehicle/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<VehicleModel>> GetVehicleModel(int id)
+        public async Task<ActionResult<VehicleModel>> GetVehicleByIdAsync(int id)
         {
-            var vehicleModel = await _context.Vehicles.FindAsync(id);
+            var vehicleToGet = await _repo.GetVehicleByIdAsync(id);
 
-            if (vehicleModel == null)
+            if (vehicleToGet == null) 
             {
-                return NotFound();
+                return BadRequest($"The vehicle with id {id} could not be found.");
             }
 
-            return vehicleModel;
+            return Ok(vehicleToGet);
         }
 
-        // PUT: api/Vehicles/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // PUT: api/Vehicle/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutVehicleModel(int id, VehicleModel vehicleModel)
+        public async Task<IActionResult> UpdateVehicleAsync(int id, [FromBody] VehicleModel vehicle)
         {
-            if (id != vehicleModel.VehicleId)
+            if (id != vehicle.VehicleId)
             {
-                return BadRequest();
+                return BadRequest("Ids did not match!");
             }
 
-            _context.Entry(vehicleModel).State = EntityState.Modified;
+            var updatedSuccess = await _repo.UpdateVehicleAsync(vehicle);
 
-            try
+            if (!updatedSuccess)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!VehicleModelExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return StatusCode(StatusCodes.Status500InternalServerError, "Failed to update the vehicle");
             }
 
             return NoContent();
         }
 
-        // POST: api/Vehicles
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // POST: api/Vehicle
         [HttpPost]
-        public async Task<ActionResult<VehicleModel>> PostVehicleModel(VehicleModel vehicleModel)
+        public async Task<ActionResult<VehicleModel>> AddVehicleAsync([FromBody] VehicleModel vehicle)
         {
-            _context.Vehicles.Add(vehicleModel);
-            await _context.SaveChangesAsync();
+            if (!ModelState.IsValid) 
+            {
+                return BadRequest(ModelState);
+            }
 
-            return CreatedAtAction("GetVehicleModel", new { id = vehicleModel.VehicleId }, vehicleModel);
+            var newVehicle = await _repo.AddVehicleAsync(vehicle);
+
+            if (newVehicle == null)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Failed to create the vehicle.");
+            }
+
+            return Ok(newVehicle);
+            //return CreatedAtAction(nameof(GetVehicleByIdAsync), new { id = newVehicle.VehicleId }, vehicle);
+
         }
 
-        // DELETE: api/Vehicles/5
+        // DELETE: api/Vehicle/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteVehicleModel(int id)
         {
-            var vehicleModel = await _context.Vehicles.FindAsync(id);
-            if (vehicleModel == null)
+            var deleteSuccess = await _repo.DeleteVehicleAsync(id);
+
+            if (!deleteSuccess) 
             {
-                return NotFound();
+                return NotFound($"The vehicle with {id} was not found.");
             }
-
-            _context.Vehicles.Remove(vehicleModel);
-            await _context.SaveChangesAsync();
-
             return NoContent();
-        }
-
-        private bool VehicleModelExists(int id)
-        {
-            return _context.Vehicles.Any(e => e.VehicleId == id);
         }
     }
 }
